@@ -11,7 +11,7 @@
     (via_costs 50)
     (plane_via_costs 5)
     (start_ripup_costs 100)
-    (start_pass_no 13)
+    (start_pass_no 18)
     (layer_rule F.Cu
       (active on)
       (preferred_direction horizontal)
@@ -29,7 +29,6 @@
     (width 200.0)
     (clear 200.0)
     (clear 100.0 (type smd_to_turn_gap))
-    (clear 50.0 (type smd-smd))
   )
   (padstack "Via[0-1]_900:600_um"
     (shape
@@ -78,12 +77,12 @@
   )
   (class default
     ADR11 ADR10 ADR9 ADR8 ADR7 ADR6 ADR5 ADR4
-    ADR3 ADR2 CLK CLR ADR1 ADR0 "unconnected-(J1-PadA15)" "unconnected-(J1-PadA18)"
-    DA0 DA1 DA2 DA3 ADR12 ADR13 ADR14 DA7
-    DA6 DA5 DA4 "unconnected-(J1-PadB15)" "unconnected-(J1-PadB16)" "unconnected-(J1-PadB18)" ADR15 "unconnected-(U4-Pad1)"
-    "unconnected-(U4-Pad2)" "unconnected-(U4-Pad3)" "unconnected-(U4-Pad4)" "unconnected-(U4-Pad12)" PWM0 PWM1 "EIO_2" "EIO_1"
-    "EIO_0" OE CS WE RST "unconnected-(U8-Pad3)" "unconnected-(U4-Pad13)" "unconnected-(U4-Pad14)"
-    "unconnected-(U4-Pad15)"
+    ADR3 ADR2 CLK CLR ADR1 ADR0 DA0 DA1
+    DA2 DA3 ADR12 ADR13 ADR14 DA7 DA6 DA5
+    DA4 "unconnected-(J5-PadA15)" "unconnected-(J5-PadA18)" "unconnected-(J5-PadB15)" "unconnected-(J5-PadB16)" "unconnected-(J5-PadB18)" PWM0 PWM1
+    "EIO_2" "EIO_1" "EIO_0" OE CS WE PPURD "unconnected-(SW1-Pad3)"
+    "unconnected-(U2-Pad1)" "unconnected-(U2-Pad2)" "unconnected-(U2-Pad3)" "unconnected-(U2-Pad4)" "unconnected-(U2-Pad12)" "unconnected-(U2-Pad13)" "unconnected-(U2-Pad14)" "unconnected-(U2-Pad15)"
+    PPUWR EXT "EIO_4" "EIO_3" /PPU{slash}A13
     (clearance_class default)
     (via_rule default)
     (rule
@@ -104,8 +103,8 @@
     )
   )
   (class Power
-    GND PWR PWR3 VIN "Net-(U10-Pad2)" "Net-(U10-Pad1)" "Net-(U12-Pad2)" "Net-(U13-Pad1)"
-    "Net-(U14-Pad1)"
+    GND "Net-(D1-Pad1)" "Net-(D2-Pad1)" PWR "Net-(D3-Pad1)" PWR3 VIN "Net-(JP1-Pad2)"
+    "Net-(JP2-Pad2)"
     (clearance_class Power)
     (via_rule Power)
     (rule
