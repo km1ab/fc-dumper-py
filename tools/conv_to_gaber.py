@@ -2,7 +2,11 @@ import os
 import sys
 import re
 import subprocess
+import platform
+from argparse import ArgumentParser
 
+####################
+# gerber info
 # TOP LAYER(F.Cu):ファイル名.GTL
 # BOTTOM LAYER(B.Cu):ファイル名.GBL
 # SOLDER STOP MASK TOP(F.Mask):ファイル名.GTS
@@ -11,7 +15,6 @@ import subprocess
 # SILK BOTTOM(B.SilkS):ファイル名.GBO
 # NC DRILL:ファイル名.TXT
 # MECHANICAL LAYER(Edge.Cuts):ファイル名.GML
-
 
 TOP_LAYER = "F_Cu.gtl"  # ファイル名.GTL
 BOTTOM_LAYER = "B_Cu.gbl"  # ファイル名.GBL
@@ -23,21 +26,37 @@ NC_DRILL_1 = "NPTH.drl"  # ファイル名.TXT
 NC_DRILL_2 = "PTH.drl"  # ファイル名.TXT
 MECHANICAL_LAYER = "Edge_Cuts.gm1"  # ファイル名.GML
 
+####################
+# const info
+OUTPUT_NAME = "gerber_output"
+OUTPUT_DIR = "./output"
 
-def convert_geber(args):
+WINDOWS_PLATFM = "Windows"
+
+
+def parse_args(args: list) -> dict:
+    argparser = ArgumentParser()
+    argparser.add_argument("in_dir")
+    argparser.add_argument("-o", "--output_name", type=str, default=OUTPUT_NAME)
+    argparser.add_argument("-d", "--output_dir", type=str, default=OUTPUT_DIR)
+    user_args = args.copy()
+    user_args.pop(0)  # pop first param(conv_to_geber.py path)
+    parse_args = argparser.parse_args(user_args)
+    # print(parse_args)
+    # print(vars(parse_args))
+    return vars(parse_args)
+
+
+def convert_gerber(args: list):
+    arg_dict = parse_args(args)
+    in_dir: str = arg_dict["in_dir"]
+    output_name: str = arg_dict["output_name"]
+    out_dir: str = arg_dict["output_dir"]
+    # print(f"in_dir={in_dir}")
+    # print(f"output_name={output_name}")
+    # print(f"output_dir={out_dir}")
+
     pre_name = ""
-    output_name = "simple_version"
-    in_dir = "gerber/pre"
-    out_dir = "./output"
-    if len(args) > 3:
-        in_dir = args[1]
-        output_name = args[2]
-        out_dir = args[3]
-    else:
-        print("Usage:")
-        print(f"  {args[0]} in_dir target_name out_dir")
-        return
-
     convert_dict = {
         TOP_LAYER: f"{output_name}.GTL",
         BOTTOM_LAYER: f"{output_name}.GBL",
@@ -55,7 +74,13 @@ def convert_geber(args):
         print(f"err: not exits directory {in_dir}")
         return
 
-    ret = subprocess.Popen(f"ls {in_dir}", stdout=subprocess.PIPE, shell=True)
+    cmd = "ls"
+    pf = platform.system()
+    # print(pf)
+    if pf == WINDOWS_PLATFM:
+        cmd = "dir /B "
+    ret = subprocess.Popen(f"{cmd} {in_dir}", stdout=subprocess.PIPE, shell=True)
+
     input_file_list = []
     for line in ret.stdout:
         dec = line.decode("utf-8").strip()
@@ -93,7 +118,13 @@ def convert_geber(args):
     if not os.path.exists(out_dir):
         print(f"warning: not exits directory {out_dir}")
         print(f"create directory {out_dir}")
-        subprocess.run(f"mkdir {out_dir}", shell=True)
+        cmd = "mkdir"
+        pf = platform.system()
+        if pf == WINDOWS_PLATFM:
+            cmd = "md"
+            out_dir = out_dir.replace("/", "\\")
+            # print(out_dir)
+        subprocess.run(f"{cmd} {out_dir}", shell=True)
 
     # convert filename to gerber format
     for ext, o_name in convert_dict.items():
@@ -102,11 +133,17 @@ def convert_geber(args):
         if not os.path.exists(in_item):
             print(f"err: not exits file {in_item}")
             continue
+        cmd = "cp"
+        pf = platform.system()
+        if pf == WINDOWS_PLATFM:
+            cmd = "copy"
+            in_item = in_item.replace("/", "\\", -1)
+            out_item = out_item.replace("/", "\\", -1)
         print(f"{in_item} ---> {out_item}")
-        cmd = f"cp {in_item} {out_item}"
+        cmd = f"{cmd} {in_item} {out_item}"
         subprocess.run(cmd, shell=True)
 
     print("Completed !!")
 
 
-convert_geber(sys.argv)
+convert_gerber(sys.argv)
