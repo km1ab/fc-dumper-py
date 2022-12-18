@@ -34,6 +34,55 @@ OUTPUT_DIR = "./output"
 WINDOWS_PLATFM = "Windows"
 
 
+class ConverterBase:
+    def __init__(self) -> None:
+        pass
+
+    def convert_command(self, data: str) -> str:
+        return data
+
+    def convert_path(self, data: str) -> str:
+        return data
+
+
+class PlatformConverter:
+    def __init__(self) -> None:
+        self.windows: bool = False
+        pf = platform.system()
+        if pf == WINDOWS_PLATFM:
+            self.windows = True
+
+    def get_converter(self) -> ConverterBase:
+        if self.windows:
+            return WinConverter()
+        return ConverterBase()
+
+    def convert_command(self, data: str) -> str:
+        return self.get_converter().convert_command(data)
+
+    def convert_path(self, data: str) -> str:
+        return self.get_converter().convert_path(data)
+
+
+class WinConverter(ConverterBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.convert_dict = {
+            "cp": "copy",
+            "mkdir": "md",
+            "ls": "dir /B ",
+        }
+
+    def convert_command(self, data: str) -> str:
+        if data in self.convert_dict:
+            return self.convert_dict[data]
+        else:
+            return data
+
+    def convert_path(self, data: str) -> str:
+        return data.replace("/", "\\", -1)
+
+
 def parse_args(args: list) -> dict:
     argparser = ArgumentParser()
     argparser.add_argument("in_dir")
@@ -74,11 +123,8 @@ def convert_gerber(args: list):
         print(f"err: not exits directory {in_dir}")
         return
 
-    cmd = "ls"
-    pf = platform.system()
-    # print(pf)
-    if pf == WINDOWS_PLATFM:
-        cmd = "dir /B "
+    converter = PlatformConverter()
+    cmd = converter.convert_command("ls")
     ret = subprocess.Popen(f"{cmd} {in_dir}", stdout=subprocess.PIPE, shell=True)
 
     input_file_list = []
@@ -93,7 +139,7 @@ def convert_gerber(args: list):
 
     input: str = ""
     for input in input_file_list:
-        print(f"check: {input}")
+        # print(f"check: {input}")
         for ext, o_name in convert_dict.items():
             result = re.search(ext, input)
             if result:
@@ -118,12 +164,8 @@ def convert_gerber(args: list):
     if not os.path.exists(out_dir):
         print(f"warning: not exits directory {out_dir}")
         print(f"create directory {out_dir}")
-        cmd = "mkdir"
-        pf = platform.system()
-        if pf == WINDOWS_PLATFM:
-            cmd = "md"
-            out_dir = out_dir.replace("/", "\\")
-            # print(out_dir)
+        cmd = converter.convert_command("mkdir")
+        out_dir = converter.convert_path(out_dir)
         subprocess.run(f"{cmd} {out_dir}", shell=True)
 
     # convert filename to gerber format
@@ -133,12 +175,9 @@ def convert_gerber(args: list):
         if not os.path.exists(in_item):
             print(f"err: not exits file {in_item}")
             continue
-        cmd = "cp"
-        pf = platform.system()
-        if pf == WINDOWS_PLATFM:
-            cmd = "copy"
-            in_item = in_item.replace("/", "\\", -1)
-            out_item = out_item.replace("/", "\\", -1)
+        cmd = converter.convert_command("cp")
+        in_item = converter.convert_path(in_item)
+        out_item = converter.convert_path(out_item)
         print(f"{in_item} ---> {out_item}")
         cmd = f"{cmd} {in_item} {out_item}"
         subprocess.run(cmd, shell=True)
