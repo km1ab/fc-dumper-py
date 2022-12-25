@@ -1,6 +1,7 @@
 import sys
 import RPi.GPIO as GPIO
 import time
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 INTV = 0.005
 # CLK	#RESET
@@ -9,6 +10,9 @@ port_tbl_addr_ctrl = [17, 27]
 port_tbl_data_ctrl = [20, 21, 22, 23, 4, 5, 6, 7]
 # CPU R/W	# /ROMSEL	# M2	# PPU /RD   # PPU /WR  # EXT PIN
 port_tbl_port_ctrl = [9, 10, 11, 19, 24, 25]
+
+# PWM0 # PWM1
+port_tbl_pwm_ctrl = [12, 13]
 
 HEADER_DATA = [
     0x4E,
@@ -29,8 +33,6 @@ HEADER_DATA = [
     0x00,
 ]
 
-args = sys.argv
-
 
 def InitPort():
     GPIO.setmode(GPIO.BCM)
@@ -40,6 +42,9 @@ def InitPort():
         GPIO.setup(d, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     for d in port_tbl_port_ctrl:
         GPIO.setup(d, GPIO.OUT)
+    for d in port_tbl_pwm_ctrl:
+        GPIO.setup(d, GPIO.OUT)
+        GPIO.output(d, False)
 
 
 def TermPort():
@@ -190,22 +195,92 @@ def ReadRom(addr, chrsize) -> list:
 #     return address
 
 
-ROM_INFO_SIZE = 25
+def parse_args(args: list) -> dict:
+    argparser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    argparser.add_argument(
+        "-o", "--output_file", default="output.nes", help="output file name;"
+    )
+    argparser.add_argument(
+        "-p",
+        "--prg_rom_size",
+        choices=["16K", "32K"],
+        default="16K",
+        help="program rom size select;",
+    )
+    argparser.add_argument(
+        "-c",
+        "--chr_rom_size",
+        choices=["8K", "16K"],
+        default="8K",
+        help="charactor rom size select;",
+    )
+    argparser.add_argument(
+        "-a",
+        "--mapper",
+        choices=["normal", "mapper3"],
+        default="normal",
+        help="mapper select;",
+    )
+    argparser.add_argument(
+        "-m", "--mode", choices=["dumper", "led_test"], default="dumper", help="mode"
+    )
+    argparser.add_argument(
+        "-D", "--led_duty", nargs="*", type=float, default=[1], help="LED testing only"
+    )
+    argparser.add_argument(
+        "-F", "--led_freq", nargs="*", type=float, default=[20], help="LED testing only"
+    )
+    argparser.add_argument(
+        "-N", "--led_number", nargs="*", type=int, default=[0], help="LED testing only"
+    )
+    argparser.add_argument("-T", "--led_time", default=5, help="LED testing only")
+    # argparser.add_argument("-d", "--output_dir", type=str, default=OUTPUT_DIR)
+    user_args = args.copy()
+    user_args.pop(0)  # pop first param(conv_to_geber.py path)
+    parse_args = argparser.parse_args(user_args)
+    return vars(parse_args)
+
+
 # OE  - CpuRw
 # CS  - RomSel
 # WE  - M2_PpuWr
 # RST - PpuRd
 def MainLoop():
-    if len(args) < 2:
-        print("error")
-        return
-
-    path_w = args[1]
+    args = sys.argv
+    arg_dict = parse_args(args)
+    path_w = arg_dict["output_file"]
+    mode: str = arg_dict["mode"]
+    led_test: bool = False
+    if mode == "led_test":
+        led_test = True
+    led_freq: list[float] = arg_dict["led_freq"]
+    led_duty: list[float] = arg_dict["led_duty"]
+    led_time: int = arg_dict["led_time"]
+    led_number: list[int] = arg_dict["led_number"]
 
     InitPort()
 
+    # print(f"{type(led_freq)}")
+    # print(f"{type(led_duty)}")
+    # print(f"{type(led_time)}")
+    if led_test:
+        print("LED test")
+        pwm = []
+        led_freq.reverse()
+        led_duty.reverse()
+        for no in led_number:
+            pwm.append(GPIO.PWM(port_tbl_pwm_ctrl[no], led_freq.pop()))
+        # p.ChangeFrequency(20)
+        for p in pwm:
+            p.start(led_duty.pop())
+        time.sleep(led_time)
+        for p in pwm:
+            p.stop()
+        TermPort()
+        return
+
     rom_size: int = 0x4000  # PRG-ROM 16K
-    chrsize: int = 0x2000  # CHR-ROM 8K
+    chr_size: int = 0x2000  # CHR-ROM 8K
 
     # PRG-ROM
     # OE + CS + !WE + !RST
@@ -246,7 +321,7 @@ def MainLoop():
     ClearAddr()
 
     n_mod = 1
-    size = chrsize
+    size = chr_size
     if size > 8:
         n_mod = size >> 3
     for i in range(size):
