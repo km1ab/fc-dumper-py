@@ -188,6 +188,7 @@ def unset_ppu_r():
 def set_data(data: int):
     GpioSetData(data)
 
+
 def ReadRom(addr, chrsize) -> list:
     ClearAddr()
     time.sleep(INTV)
@@ -312,28 +313,22 @@ class RomDumperMapper3(RomDumper):
     def set_chr_rom_bank(self, bank: int):
         # データ線を入力→出力に切り替える
         set_data_ctrl_to_output()
-        # TermPort()
-        # InitPort(False)
-        # HighM2_PpuWr();
-        # HighPpuRd();
         set_m2_o2()
         set_ppu_w()
         set_ppu_r()
-        # ClearAddr();
-        # ClearBankBits();
+
         ClearAddr()
+
         # clear_bank_bits() # これはD0,D1を両方共ゼロにする
         set_data(0x00)
-        # Low1OE()
         # unset_ppu_r() # おそらくいらない。CHR ROMが出力されてしまう
 
         # mapper3 のCHR ROMの/OEと/RDが接続されている
-        # mapper3 のCHR ROMの/CEと/PA13が接続されている. 
+        # mapper3 のCHR ROMの/CEと/PA13が接続されている.
         # 参考にした資料はPA13となっているが、これは/PA13のことと思われる。
         # これにより最上位ビット(bit0 - bit15のbit15)が1のときに/CEの入力が1でchip enable がdisableになる
-        # LowCpuRw();
-        # LowRomSel();
-        # HC161
+
+        # Fancon      HC161
         # R//W    --- /LD
         # /ROMSEL --- CK
         unset_cpu_rw()
@@ -347,68 +342,30 @@ class RomDumperMapper3(RomDumper):
         elif bank == 1:
             #  mapper3 bank1 (D0=1 D1=0 D4=1 D5=1 0x31)
             self.set_addr(0x859C)  #  0x31
-            # SetD0();
             set_data(0x31)
             print("bank1")
         elif bank == 2:
             #  mapper3 bank2 (D0=0 D1=1 D4=1 D5=1 0x32)
             self.set_addr(0x8627)  #  0x32
-            # SetD1();
             set_data(0x32)
             print("bank2")
         else:  # elif bank==3:
             #  mapper3 bank3 (D0=1 D1=1 D4=1 D5=1 0x33)
             self.set_addr(0x8698)  #  0x33
-            # SetD0();
-            # SetD1();
             set_data(0x33)
             print("bank3")
-        # if bank==0 then
-        # 	-- mapper3 bank0 (D0=0 D1=0 D4=1 D5=1 0x30)
-        # 	SetAddress(0x02BC);-- 0x30
-        # -- D0/D1 is zero
-        # 	DebugLog("bank0");
-        # elseif bank==1 then
-        # 	-- mapper3 bank0 (D0=1 D1=0 D4=1 D5=1 0x31)
-        # 	SetAddress(0x059C);-- 0x31
-        # 	SetD0();
-        # 	DebugLog("bank1");
-        # elseif bank==2 then
-        # 	-- mapper3 bank0 (D0=0 D1=1 D4=1 D5=1 0x32)
-        # 	SetAddress(0x0627);-- 0x32
-        # 	SetD1();
-        # 	DebugLog("bank2");
-        # else
-        # 	-- mapper3 bank0 (D0=1 D1=1 D4=1 D5=1 0x33)
-        # 	SetAddress(0x0698);-- 0x33
-        # 	SetD0();
-        # 	SetD1();
-        # 	DebugLog("bank3");
-        # end
 
-        # gpio_sleep(30);
         time.sleep(0.03)
-        # HighRomSel();
-        # HighCpuRw();
+
         set_romsel()
         set_cpu_rw()
+        # データ線を出力→入力に切り替える
         set_data_ctrl_to_intput()
-        # LowPpuRd();
-        # LowM2_PpuWr();
-        # unset_ppu_r()
+
         unset_m2_o2()
         unset_ppu_w()
 
-        # gpio_sleep(30);
         time.sleep(0.03)
-
-        # High1OE()
-        # set_ppu_r()
-
-        # データ線を出力→入力に切り替える
-        # TermPort()
-        # InitPort(True)
-        # set_data_ctrl_to_intput()
 
     def read(self, rom_size: int, addr: int = 0) -> bytearray:
         if self.chr_mode:
@@ -420,40 +377,6 @@ class RomDumperMapper3(RomDumper):
             return bin
 
         return super().read(rom_size, addr)  # for prg rom mode
-
-
-# def ReadLoRom(addr,chrsize)
-# 	ClearAddr()
-# 	gpio_sleep(50)
-# 	SetAddress(addr)
-# 	upper = 0
-# 	for i=1,chrsize*2 do
-# 	    if (i-1)>upper * 2 * 0x8000 then
-# 		    if 0==((i-1) % 0x8000) then
-# 				upper = upper + 1
-# 		    end
-# 	    end
-# 		address = upper * 2 * 0x8000 + ((i-1) % 0x8000) + 0x8000
-# 	    if (i-1)+0x8000==address then
-# 			val = gpio_get_value(port_tbl_data_ctrl[1], 0, 0xff)
-# 			dumper_write(val)
-# 		end
-# 		IncAddress()
-# 		i=i+1
-# 	end
-# end
-# def conver_address(in_addr: int) -> int:
-#     address = in_addr
-#     upper = int(address / 0x8000)
-#     lower = address % 0x8000
-#     address = upper * 2 * 0x8000 + lower + 0x8000
-#     if (address % 0x8000) == 0:
-#         # clear addr
-#         ClearAddr()
-#         # set addr
-#         SetAddress(address)
-
-#     return address
 
 
 def led_testing(arg_dict: dict):
@@ -556,53 +479,6 @@ def MainLoop():
     bin.extend(dump.read(rom_size))
     dump.set_chr_rom_mode()
     bin.extend(dump.read(chr_size))
-    # # PRG-ROM
-    # # OE + CS + !WE + !RST
-    # set_cpu_rw()
-    # unset_romsel()
-    # set_m2_o2()
-    # set_ppu_w()
-    # set_ppu_r()
-
-    # ClearAddr()
-
-    # print(f"start_address = {hex(start_address)}")
-    # SetAddress(start_address)
-    # time.sleep(INTV)
-    # bin = bytearray([])
-    # n_mod = 1
-    # size = rom_size
-    # if size > 8:
-    #     n_mod = size >> 3
-    # for i in range(size):
-    #     if i % n_mod == 0:
-    #         sys.stdout.write("#")
-    #         sys.stdout.flush()
-    #         time.sleep(0.001)
-    #     bin.append(GpioGetData())
-    #     IncAddress()
-
-    # # CHR-ROM
-    # # OE + CS + !WE + !RST
-    # unset_cpu_rw()
-    # set_romsel()
-    # unset_m2_o2()
-    # unset_ppu_w()
-    # unset_ppu_r()
-
-    # ClearAddr()
-
-    # n_mod = 1
-    # size = chr_size
-    # if size > 8:
-    #     n_mod = size >> 3
-    # for i in range(size):
-    #     if i % n_mod == 0:
-    #         sys.stdout.write("#")
-    #         sys.stdout.flush()
-    #         time.sleep(0.001)
-    #     bin.append(GpioGetData())
-    #     IncAddress()
 
     with open(path_w, mode="wb") as f:
         header = bytes(HEADER_DATA)
