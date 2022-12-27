@@ -51,7 +51,7 @@ SIZE_32K = "32K"
 ROM_SIZE_DICT = {SIZE_8K: 0x2000, SIZE_16K: 0x4000, SIZE_32K: 0x8000}
 
 
-def InitPort(data_in: bool = True):
+def init_port(data_in: bool = True):
     GPIO.setmode(GPIO.BCM)
     for d in port_tbl_addr_ctrl:
         GPIO.setup(d, GPIO.OUT)
@@ -66,7 +66,7 @@ def InitPort(data_in: bool = True):
         GPIO.output(d, False)
 
 
-def TermPort():
+def term_port():
     GPIO.cleanup()
 
 
@@ -80,24 +80,24 @@ def set_data_ctrl_to_output():
         GPIO.setup(d, GPIO.OUT)
 
 
-def GpioOut(d, f):
+def gpio_out(d, f):
     GPIO.output(d, f)
 
 
-def GpioIn(d):
+def gpio_in(d):
     return GPIO.input(d)
 
 
-def GpioGetData():
+def gpio_get_data():
     ret = (
-        ((GpioIn(port_tbl_data_ctrl[0]) << 0))
-        | ((GpioIn(port_tbl_data_ctrl[1]) << 1))
-        | ((GpioIn(port_tbl_data_ctrl[2]) << 2))
-        | ((GpioIn(port_tbl_data_ctrl[3]) << 3))
-        | ((GpioIn(port_tbl_data_ctrl[4]) << 4))
-        | ((GpioIn(port_tbl_data_ctrl[5]) << 5))
-        | ((GpioIn(port_tbl_data_ctrl[6]) << 6))
-        | ((GpioIn(port_tbl_data_ctrl[7]) << 7))
+        ((gpio_in(port_tbl_data_ctrl[0]) << 0))
+        | ((gpio_in(port_tbl_data_ctrl[1]) << 1))
+        | ((gpio_in(port_tbl_data_ctrl[2]) << 2))
+        | ((gpio_in(port_tbl_data_ctrl[3]) << 3))
+        | ((gpio_in(port_tbl_data_ctrl[4]) << 4))
+        | ((gpio_in(port_tbl_data_ctrl[5]) << 5))
+        | ((gpio_in(port_tbl_data_ctrl[6]) << 6))
+        | ((gpio_in(port_tbl_data_ctrl[7]) << 7))
     )
     return ret
 
@@ -106,101 +106,101 @@ def GpioGetData():
 # 	return ord(hex(ret))
 
 
-def GpioSetData(data: int):
-    GpioOut(port_tbl_data_ctrl[0], (data >> 0) & 0x1)
-    GpioOut(port_tbl_data_ctrl[1], (data >> 1) & 0x1)
-    GpioOut(port_tbl_data_ctrl[2], (data >> 2) & 0x1)
-    GpioOut(port_tbl_data_ctrl[3], (data >> 3) & 0x1)
-    GpioOut(port_tbl_data_ctrl[4], (data >> 4) & 0x1)
-    GpioOut(port_tbl_data_ctrl[5], (data >> 5) & 0x1)
-    GpioOut(port_tbl_data_ctrl[6], (data >> 6) & 0x1)
-    GpioOut(port_tbl_data_ctrl[7], (data >> 7) & 0x1)
+def gpio_set_data(data: int):
+    gpio_out(port_tbl_data_ctrl[0], (data >> 0) & 0x1)
+    gpio_out(port_tbl_data_ctrl[1], (data >> 1) & 0x1)
+    gpio_out(port_tbl_data_ctrl[2], (data >> 2) & 0x1)
+    gpio_out(port_tbl_data_ctrl[3], (data >> 3) & 0x1)
+    gpio_out(port_tbl_data_ctrl[4], (data >> 4) & 0x1)
+    gpio_out(port_tbl_data_ctrl[5], (data >> 5) & 0x1)
+    gpio_out(port_tbl_data_ctrl[6], (data >> 6) & 0x1)
+    gpio_out(port_tbl_data_ctrl[7], (data >> 7) & 0x1)
 
 
-def ClearAddr():
-    GpioOut(port_tbl_addr_ctrl[1], True)
-    GpioOut(port_tbl_addr_ctrl[1], False)
+def clear_addr():
+    gpio_out(port_tbl_addr_ctrl[1], True)
+    gpio_out(port_tbl_addr_ctrl[1], False)
 
 
-def SetAddress(addr):
-    GpioOut(port_tbl_addr_ctrl[0], True)
-    GpioOut(port_tbl_addr_ctrl[1], True)
+def set_address(addr):
+    gpio_out(port_tbl_addr_ctrl[0], True)
+    gpio_out(port_tbl_addr_ctrl[1], True)
     time.sleep(INTV)
-    GpioOut(port_tbl_addr_ctrl[1], False)
+    gpio_out(port_tbl_addr_ctrl[1], False)
     for i in range(addr):
-        GpioOut(port_tbl_addr_ctrl[0], False)
-        GpioOut(port_tbl_addr_ctrl[0], True)
+        gpio_out(port_tbl_addr_ctrl[0], False)
+        gpio_out(port_tbl_addr_ctrl[0], True)
 
 
-def IncAddress():
-    GpioOut(port_tbl_addr_ctrl[0], False)
-    GpioOut(port_tbl_addr_ctrl[0], True)
+def inc_address():
+    gpio_out(port_tbl_addr_ctrl[0], False)
+    gpio_out(port_tbl_addr_ctrl[0], True)
 
 
-def SetPortCtrl(i):
-    GpioOut(port_tbl_port_ctrl[i], True)
+def set_port_ctrl(i):
+    gpio_out(port_tbl_port_ctrl[i], True)
 
 
-def ClearPortCtrl(i):
-    GpioOut(port_tbl_port_ctrl[i], False)
+def clear_port_ctrl(i):
+    gpio_out(port_tbl_port_ctrl[i], False)
 
 
 def set_cpu_rw():
-    SetPortCtrl(0)
+    set_port_ctrl(0)
 
 
 def unset_cpu_rw():
-    ClearPortCtrl(0)
+    clear_port_ctrl(0)
 
 
 def set_romsel():
-    SetPortCtrl(1)
+    set_port_ctrl(1)
 
 
 def unset_romsel():
-    ClearPortCtrl(1)
+    clear_port_ctrl(1)
 
 
 def set_m2_o2():
-    SetPortCtrl(2)
+    set_port_ctrl(2)
 
 
 def unset_m2_o2():
-    ClearPortCtrl(2)
+    clear_port_ctrl(2)
 
 
 def set_ppu_w():
-    SetPortCtrl(4)
+    set_port_ctrl(4)
 
 
 def unset_ppu_w():
-    ClearPortCtrl(4)
+    clear_port_ctrl(4)
 
 
 def set_ppu_r():
-    SetPortCtrl(3)
+    set_port_ctrl(3)
 
 
 def unset_ppu_r():
-    ClearPortCtrl(3)
+    clear_port_ctrl(3)
 
 
 def set_data(data: int):
-    GpioSetData(data)
+    gpio_set_data(data)
 
 
-def ReadRom(addr, chrsize) -> list:
-    ClearAddr()
+def read_rom(addr, chrsize) -> list:
+    clear_addr()
     time.sleep(INTV)
-    SetAddress(addr)
+    set_address(addr)
     time.sleep(INTV)
     output = []
     for i in range(chrsize):
-        # print(chr(GpioGetData()), end='')
+        # print(chr(gpio_get_data()), end='')
         time.sleep(INTV)
-        # GpioGetData()
-        output.append(GpioGetData())
-        IncAddress()
+        # gpio_get_data()
+        output.append(gpio_get_data())
+        set_address()
     print("")
     return output
 
@@ -220,8 +220,8 @@ class RomDumper:
                 sys.stdout.write("#")
                 sys.stdout.flush()
                 time.sleep(0.001)
-            bin.append(GpioGetData())
-            IncAddress()
+            bin.append(gpio_get_data())
+            set_address()
 
         return bin
 
@@ -276,7 +276,7 @@ class RomDumper:
         unset_ppu_r()
 
     def read(self, rom_size: int, addr: int = 0x0000) -> bytearray:
-        ClearAddr()
+        clear_addr()
 
         print(f"address = {hex(addr)}")
         self.set_addr(addr)
@@ -287,7 +287,7 @@ class RomDumper:
         return bin
 
     def set_addr(self, addr: int):
-        SetAddress(addr)
+        set_address(addr)
 
 
 class RomDumperMapper3(RomDumper):
@@ -317,7 +317,7 @@ class RomDumperMapper3(RomDumper):
         set_ppu_w()
         set_ppu_r()
 
-        ClearAddr()
+        clear_addr()
 
         # clear_bank_bits() # これはD0,D1を両方共ゼロにする
         set_data(0x00)
@@ -396,7 +396,7 @@ def led_testing(arg_dict: dict):
     time.sleep(led_time)
     for p in pwm:
         p.stop()
-    TermPort()
+    term_port()
 
 
 def parse_args(args: list) -> dict:
@@ -459,7 +459,7 @@ def MainLoop():
     chr_size: int = ROM_SIZE_DICT[arg_dict["chr_rom_size"]]  # 0x2000  # CHR-ROM 8K
     # start_address: int = 0x0000
 
-    InitPort()
+    init_port()
 
     # print(f"{type(led_freq)}")
     # print(f"{type(led_duty)}")
@@ -485,8 +485,8 @@ def MainLoop():
         f.write(header)
         f.write(bin)
 
-    ClearAddr()
-    TermPort()
+    clear_addr()
+    term_port()
     print("")
     print("Complete!")
 
@@ -496,6 +496,6 @@ try:
 except Exception as e:
     print(f"Error: {e}")
     print("Clear Address")
-    ClearAddr()
+    clear_addr()
     print("Term Port")
-    TermPort()
+    term_port()
