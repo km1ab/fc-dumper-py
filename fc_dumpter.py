@@ -200,7 +200,7 @@ def read_rom(addr, chrsize) -> list:
         time.sleep(INTV)
         # gpio_get_data()
         output.append(gpio_get_data())
-        set_address()
+        inc_address()
     print("")
     return output
 
@@ -221,7 +221,7 @@ class RomDumper:
                 sys.stdout.flush()
                 time.sleep(0.001)
             bin.append(gpio_get_data())
-            set_address()
+            inc_address()
 
         return bin
 
@@ -292,10 +292,11 @@ class RomDumper:
 
 class RomDumperMapper3(RomDumper):
     # chr_romのバンクの数を入力
-    def __init__(self, bank_num: int) -> None:
+    def __init__(self, bank_num: int, hint: str = "default") -> None:
         super().__init__()
         self.bank_num = bank_num
         self.chr_mode = False
+        self.hint = hint
 
     def set_prg_rom_mode(self):
         self.chr_mode = False
@@ -336,22 +337,35 @@ class RomDumperMapper3(RomDumper):
 
         if bank == 0:
             # mapper3 bank0 (D0=0 D1=0 D4=1 D5=1 0x30)
-            self.set_addr(0x82BC)  # 0x30
+            if self.hint == "star":
+                self.set_addr(0x812E)  # 0x30
+            else:
+                self.set_addr(0x82BC)  # 0x30
             set_data(0x30)
             print("bank0")
         elif bank == 1:
             #  mapper3 bank1 (D0=1 D1=0 D4=1 D5=1 0x31)
-            self.set_addr(0x859C)  #  0x31
+            if self.hint == "star":
+                self.set_addr(0x85A1)
+            else:
+                self.set_addr(0x859C)  #  0x31
             set_data(0x31)
             print("bank1")
         elif bank == 2:
             #  mapper3 bank2 (D0=0 D1=1 D4=1 D5=1 0x32)
-            self.set_addr(0x8627)  #  0x32
+            if self.hint == "star":
+                self.set_addr(0x8670)
+            else:
+                self.set_addr(0x8627)  #  0x32
             set_data(0x32)
             print("bank2")
         else:  # elif bank==3:
             #  mapper3 bank3 (D0=1 D1=1 D4=1 D5=1 0x33)
-            self.set_addr(0x8698)  #  0x33
+            if self.hint == "star":
+                self.set_addr(0x8679)  #  0x33
+            else:
+                self.set_addr(0x8698)  #  0x33
+
             set_data(0x33)
             print("bank3")
 
@@ -426,6 +440,13 @@ def parse_args(args: list) -> dict:
         help="mapper select;",
     )
     argparser.add_argument(
+        "-t",
+        "--hint",
+        choices=["default", "star"],
+        default="deault",
+        help="mapper select;",
+    )
+    argparser.add_argument(
         "-m", "--mode", choices=["dumper", "led_test"], default="dumper", help="mode"
     )
     argparser.add_argument(
@@ -452,6 +473,7 @@ def MainLoop():
     mode: str = arg_dict["mode"]
     led_test: bool = False
     mapper: str = arg_dict["mapper"]
+    hint: str = arg_dict["hint"]
     if mode == "led_test":
         led_test = True
 
@@ -470,7 +492,7 @@ def MainLoop():
 
     dump: RomDumper = None
     if mapper == "mapper3":
-        dump = RomDumperMapper3(4)
+        dump = RomDumperMapper3(4, hint)
     else:
         dump = RomDumper()
 
