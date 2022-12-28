@@ -50,6 +50,8 @@ SIZE_32K = "32K"
 # chr_size: int = 0x2000  # CHR-ROM 8K
 ROM_SIZE_DICT = {SIZE_8K: 0x2000, SIZE_16K: 0x4000, SIZE_32K: 0x8000}
 
+BANK_KEY_LIST = [0x30, 0x31, 0x32, 0x33]
+
 
 def init_port(data_in: bool = True):
     GPIO.setmode(GPIO.BCM)
@@ -205,9 +207,29 @@ def read_rom(addr, chrsize) -> list:
     return output
 
 
+class Debug:
+    def __init__(self) -> None:
+        pass
+
+    def dbg_log(self,log: str):
+        print(log)
+
+
+class DebugDummy(Debug):
+    def __init__(self) -> None:
+        pass
+
+    def dbg_log(self,log: str):
+        pass
+
+
 class RomDumper:
     def __init__(self) -> None:
         self.bins = bytearray([])
+        self.dbg: Debug = DebugDummy()
+
+    def set_debug_object(self, obj: Debug):
+        self.dbg = obj
 
     def read_binary(self, size: int) -> bytearray:
         bin = bytearray([])
@@ -278,7 +300,7 @@ class RomDumper:
     def read(self, rom_size: int, addr: int = 0x0000) -> bytearray:
         clear_addr()
 
-        print(f"address = {hex(addr)}")
+        self.dbg.dbg_log(f"address = {hex(addr)}")
         self.set_addr(addr)
         time.sleep(INTV)
         bin = self.read_binary(rom_size)
@@ -292,11 +314,11 @@ class RomDumper:
 
 class RomDumperMapper3(RomDumper):
     # chr_romのバンクの数を入力
-    def __init__(self, bank_num: int, hint: str = "default") -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.bank_num = bank_num
+        # self.bank_num = bank_num
         self.chr_mode = False
-        self.hint = hint
+        # self.hint = hint
 
     def set_prg_rom_mode(self):
         self.chr_mode = False
@@ -311,7 +333,17 @@ class RomDumperMapper3(RomDumper):
         unset_ppu_w()
         unset_ppu_r()
 
-    def set_chr_rom_bank(self, bank: int):
+    def find_mapper_selecting_key(self, key) -> int:
+        addr: int = 0
+        # print(f"type: {type(key)}")
+        for value in self.bins:
+            if value == key and addr != 0x0000:
+                return addr
+            addr = addr + 1
+
+        return 0x0000
+
+    def change_chr_rom_bank(self, key: int, addr: int):
         # データ線を入力→出力に切り替える
         set_data_ctrl_to_output()
         set_m2_o2()
@@ -335,39 +367,11 @@ class RomDumperMapper3(RomDumper):
         unset_cpu_rw()
         unset_romsel()
 
-        if bank == 0:
-            # mapper3 bank0 (D0=0 D1=0 D4=1 D5=1 0x30)
-            if self.hint == "star":
-                self.set_addr(0x812E)  # 0x30
-            else:
-                self.set_addr(0x82BC)  # 0x30
-            set_data(0x30)
-            print("bank0")
-        elif bank == 1:
-            #  mapper3 bank1 (D0=1 D1=0 D4=1 D5=1 0x31)
-            if self.hint == "star":
-                self.set_addr(0x85A1)
-            else:
-                self.set_addr(0x859C)  #  0x31
-            set_data(0x31)
-            print("bank1")
-        elif bank == 2:
-            #  mapper3 bank2 (D0=0 D1=1 D4=1 D5=1 0x32)
-            if self.hint == "star":
-                self.set_addr(0x8670)
-            else:
-                self.set_addr(0x8627)  #  0x32
-            set_data(0x32)
-            print("bank2")
-        else:  # elif bank==3:
-            #  mapper3 bank3 (D0=1 D1=1 D4=1 D5=1 0x33)
-            if self.hint == "star":
-                self.set_addr(0x8679)  #  0x33
-            else:
-                self.set_addr(0x8698)  #  0x33
-
-            set_data(0x33)
-            print("bank3")
+        self.dbg.dbg_log("")
+        addr = 0x8000 + addr
+        self.set_addr(addr)
+        set_data(key)
+        self.dbg.dbg_log(f"key: {hex(key)} addr:{hex(addr)}")
 
         time.sleep(0.03)
 
@@ -381,11 +385,85 @@ class RomDumperMapper3(RomDumper):
 
         time.sleep(0.03)
 
+    # def set_chr_rom_bank(self, bank: int):
+    #     # データ線を入力→出力に切り替える
+    #     set_data_ctrl_to_output()
+    #     set_m2_o2()
+    #     set_ppu_w()
+    #     set_ppu_r()
+
+    #     clear_addr()
+
+    #     # clear_bank_bits() # これはD0,D1を両方共ゼロにする
+    #     set_data(0x00)
+    #     # unset_ppu_r() # おそらくいらない。CHR ROMが出力されてしまう
+
+    #     # mapper3 のCHR ROMの/OEと/RDが接続されている
+    #     # mapper3 のCHR ROMの/CEと/PA13が接続されている.
+    #     # 参考にした資料はPA13となっているが、これは/PA13のことと思われる。
+    #     # これにより最上位ビット(bit0 - bit15のbit15)が1のときに/CEの入力が1でchip enable がdisableになる
+
+    #     # Fancon      HC161
+    #     # R//W    --- /LD
+    #     # /ROMSEL --- CK
+    #     unset_cpu_rw()
+    #     unset_romsel()
+
+    #     print("")
+    #     if bank == 0:
+    #         # mapper3 bank0 (D0=0 D1=0 D4=1 D5=1 0x30)
+    #         if self.hint == "star":
+    #             self.set_addr(0x812E)  # 0x30
+    #         else:
+    #             self.set_addr(0x82BC)  # 0x30
+    #         set_data(0x30)
+    #         print("bank0")
+    #     elif bank == 1:
+    #         #  mapper3 bank1 (D0=1 D1=0 D4=1 D5=1 0x31)
+    #         if self.hint == "star":
+    #             self.set_addr(0x85A1)
+    #         else:
+    #             self.set_addr(0x859C)  #  0x31
+    #         set_data(0x31)
+    #         print("bank1")
+    #     elif bank == 2:
+    #         #  mapper3 bank2 (D0=0 D1=1 D4=1 D5=1 0x32)
+    #         if self.hint == "star":
+    #             self.set_addr(0x8670)
+    #         else:
+    #             self.set_addr(0x8627)  #  0x32
+    #         set_data(0x32)
+    #         print("bank2")
+    #     else:  # elif bank==3:
+    #         #  mapper3 bank3 (D0=1 D1=1 D4=1 D5=1 0x33)
+    #         if self.hint == "star":
+    #             self.set_addr(0x8679)  #  0x33
+    #         else:
+    #             self.set_addr(0x8698)  #  0x33
+
+    #         set_data(0x33)
+    #         print("bank3")
+
+    #     time.sleep(0.03)
+
+    #     set_romsel()
+    #     set_cpu_rw()
+    #     # データ線を出力→入力に切り替える
+    #     set_data_ctrl_to_intput()
+
+    #     unset_m2_o2()
+    #     unset_ppu_w()
+
+    #     time.sleep(0.03)
+
     def read(self, rom_size: int, addr: int = 0) -> bytearray:
         if self.chr_mode:
             bin = bytearray([])
-            for bank in range(self.bank_num):
-                self.set_chr_rom_bank(bank)
+            for bin_key in BANK_KEY_LIST:
+                # bank key を探してその値をそれぞれ書き込んでバンクを切り替える
+                bnk_addr = self.find_mapper_selecting_key(bin_key)
+                self.dbg.dbg_log(f"key: {hex(bin_key)} addr={hex(bnk_addr)}")
+                self.change_chr_rom_bank(bin_key, bnk_addr)
                 self.set_chr_rom_mode()
                 bin.extend(super().read(rom_size, addr))
             return bin
@@ -439,16 +517,17 @@ def parse_args(args: list) -> dict:
         default="mapper0",
         help="mapper select;",
     )
-    argparser.add_argument(
-        "-t",
-        "--hint",
-        choices=["default", "star"],
-        default="deault",
-        help="mapper select;",
-    )
+    # argparser.add_argument(
+    #     "-t",
+    #     "--hint",
+    #     choices=["default", "star"],
+    #     default="deault",
+    #     help="mapper select;",
+    # )
     argparser.add_argument(
         "-m", "--mode", choices=["dumper", "led_test"], default="dumper", help="mode"
     )
+    argparser.add_argument("-d", "--debug", nargs="?", const=True, default=False, help="debug log")
     argparser.add_argument(
         "-D", "--led_duty", nargs="*", type=float, default=[1], help="LED testing only"
     )
@@ -473,7 +552,8 @@ def MainLoop():
     mode: str = arg_dict["mode"]
     led_test: bool = False
     mapper: str = arg_dict["mapper"]
-    hint: str = arg_dict["hint"]
+    # hint: str = arg_dict["hint"]
+    debug: bool = arg_dict["debug"]
     if mode == "led_test":
         led_test = True
 
@@ -492,9 +572,12 @@ def MainLoop():
 
     dump: RomDumper = None
     if mapper == "mapper3":
-        dump = RomDumperMapper3(4, hint)
+        dump = RomDumperMapper3()
     else:
         dump = RomDumper()
+
+    if debug:
+        dump.set_debug_object(Debug())
 
     bin = bytearray([])
     dump.set_prg_rom_mode()
