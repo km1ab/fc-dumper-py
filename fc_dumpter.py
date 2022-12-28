@@ -14,31 +14,31 @@ port_tbl_port_ctrl = [9, 10, 11, 19, 24, 25]
 # PWM0 # PWM1
 port_tbl_pwm_ctrl = [12, 13]
 
-HEADER_DATA = [
-    0x4E,
-    0x45,
-    0x53,
-    0x1A,
-    ##########
+HEADER_DATA_COMMON = [0x4E, 0x45, 0x53, 0x1A]
+
+HEADER_DATA_COMMON_FOOTER = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+HEADER_DATA_MAPPER0 = [
     # mapper 0
-    # 0x01,
-    # 0x01,
-    # 0x00,
-    ##########
+    0x01,
+    0x01,
+    0x00,
+    0x00,
+]
+
+HEADER_DATA_MAPPER3 = [
     # mapper 3
     0x02,
     0x04,
     0x31,
-    ##########
     0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
+]
+
+HEADER_DATA_MAPPER66 = [
+    # mapper 66
+    0x08,
+    0x04,
+    0x21,
+    0x40,
 ]
 
 SIZE_8K = "8K"
@@ -50,7 +50,11 @@ SIZE_32K = "32K"
 # chr_size: int = 0x2000  # CHR-ROM 8K
 ROM_SIZE_DICT = {SIZE_8K: 0x2000, SIZE_16K: 0x4000, SIZE_32K: 0x8000}
 
-BANK_KEY_LIST = [0x30, 0x31, 0x32, 0x33]
+BANK_KEY_LIST = [0x30, 0x31, 0x32, 0x33]  # mapper3
+BANK_KEY_MAPPER66_LIST0 = [0x00, 0x11, 0x22, 0x33] # 4bank
+# BANK_KEY_MAPPER66_LIST0 = [0x00, 0x10, 0x20, 0x30]  # 4bank
+# BANK_KEY_MAPPER66_LIST1 = [0x30, 0x31, 0x32, 0x33]  # 4bank
+# BANK_KEY_MAPPER66_LIST1 = [0x00, 0x01, 0x02, 0x03] # 4bank
 
 
 def init_port(data_in: bool = True):
@@ -211,7 +215,7 @@ class Debug:
     def __init__(self) -> None:
         pass
 
-    def dbg_log(self,log: str):
+    def dbg_log(self, log: str):
         print(log)
 
 
@@ -219,7 +223,7 @@ class DebugDummy(Debug):
     def __init__(self) -> None:
         pass
 
-    def dbg_log(self,log: str):
+    def dbg_log(self, log: str):
         pass
 
 
@@ -228,8 +232,22 @@ class RomDumper:
         self.bins = bytearray([])
         self.dbg: Debug = DebugDummy()
 
+    def get_header(self) -> bytes:
+        header = HEADER_DATA_COMMON
+        header.extend(HEADER_DATA_MAPPER0)
+        header.extend(HEADER_DATA_COMMON_FOOTER)
+        return bytes(header)
+
     def set_debug_object(self, obj: Debug):
         self.dbg = obj
+
+    def read_prg_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        self.set_prg_rom_mode()
+        return self.read(rom_size, addr)
+
+    def read_chr_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        self.set_chr_rom_mode()
+        return self.read(rom_size, addr)
 
     def read_binary(self, size: int) -> bytearray:
         bin = bytearray([])
@@ -268,6 +286,7 @@ class RomDumper:
         #   また、CHR ROMのPA13と/CSが接続
         set_cpu_rw()
         unset_romsel()
+
         set_m2_o2()
         set_ppu_w()
         set_ppu_r()
@@ -300,7 +319,7 @@ class RomDumper:
     def read(self, rom_size: int, addr: int = 0x0000) -> bytearray:
         clear_addr()
 
-        self.dbg.dbg_log(f"address = {hex(addr)}")
+        self.dbg.dbg_log(f"read address = {hex(addr)}")
         self.set_addr(addr)
         time.sleep(INTV)
         bin = self.read_binary(rom_size)
@@ -311,27 +330,32 @@ class RomDumper:
     def set_addr(self, addr: int):
         set_address(addr)
 
+    def write_file(self, path: str, data: bytearray):
+        with open(path, mode="wb") as f:
+            f.write(self.get_header())
+            f.write(data)
+
 
 class RomDumperMapper3(RomDumper):
     # chr_romのバンクの数を入力
     def __init__(self) -> None:
         super().__init__()
         # self.bank_num = bank_num
-        self.chr_mode = False
         # self.hint = hint
 
-    def set_prg_rom_mode(self):
-        self.chr_mode = False
-        return super().set_prg_rom_mode()
+    def get_header(self) -> bytes:
+        header = HEADER_DATA_COMMON
+        header.extend(HEADER_DATA_MAPPER3)
+        header.extend(HEADER_DATA_COMMON_FOOTER)
+        return bytes(header)
 
-    def set_chr_rom_mode(self):
-        self.chr_mode = True
-        # romsel と cpu_rwはいじらない
-        # unset_cpu_rw()
-        # set_romsel()
-        unset_m2_o2()
-        unset_ppu_w()
-        unset_ppu_r()
+    # def set_chr_rom_mode(self):
+    #     # romsel と cpu_rwはいじらない
+    #     # unset_cpu_rw()
+    #     # set_romsel()
+    #     unset_m2_o2()
+    #     unset_ppu_w()
+    #     unset_ppu_r()
 
     def find_mapper_selecting_key(self, key) -> int:
         addr: int = 0
@@ -361,15 +385,16 @@ class RomDumperMapper3(RomDumper):
         # 参考にした資料はPA13となっているが、これは/PA13のことと思われる。
         # これにより最上位ビット(bit0 - bit15のbit15)が1のときに/CEの入力が1でchip enable がdisableになる
 
+        self.dbg.dbg_log("")
+        addr = 0x8000 + addr
+        self.set_addr(addr)
+
         # Fancon      HC161
         # R//W    --- /LD
         # /ROMSEL --- CK
         unset_cpu_rw()
         unset_romsel()
 
-        self.dbg.dbg_log("")
-        addr = 0x8000 + addr
-        self.set_addr(addr)
         set_data(key)
         self.dbg.dbg_log(f"key: {hex(key)} addr:{hex(addr)}")
 
@@ -456,19 +481,67 @@ class RomDumperMapper3(RomDumper):
 
     #     time.sleep(0.03)
 
-    def read(self, rom_size: int, addr: int = 0) -> bytearray:
-        if self.chr_mode:
-            bin = bytearray([])
-            for bin_key in BANK_KEY_LIST:
-                # bank key を探してその値をそれぞれ書き込んでバンクを切り替える
-                bnk_addr = self.find_mapper_selecting_key(bin_key)
-                self.dbg.dbg_log(f"key: {hex(bin_key)} addr={hex(bnk_addr)}")
-                self.change_chr_rom_bank(bin_key, bnk_addr)
-                self.set_chr_rom_mode()
-                bin.extend(super().read(rom_size, addr))
-            return bin
+    def get_bank_key_list(self) -> list:
+        return BANK_KEY_LIST
 
-        return super().read(rom_size, addr)  # for prg rom mode
+    def read_chr_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        bin = bytearray([])
+        for bin_key in self.get_bank_key_list():
+            # bank key を探してその値をそれぞれ書き込んでバンクを切り替える
+            bnk_addr = self.find_mapper_selecting_key(bin_key)
+            self.dbg.dbg_log(f"key: {hex(bin_key)} addr={hex(bnk_addr)}")
+            self.change_chr_rom_bank(bin_key, bnk_addr)
+            self.set_chr_rom_mode()
+            bin.extend(super().read(rom_size, addr))
+        return bin
+
+
+class RomDumperMapper66(RomDumperMapper3):
+    def __init__(self) -> None:
+        super().__init__()
+        # self.prg_rom:bytearray = bytearray([])
+        self.chr_rom:bytearray = bytearray([])
+
+    def get_bank_key_list(self) -> list:
+        return BANK_KEY_MAPPER66_LIST0
+
+    def get_header(self) -> bytes:
+        header = HEADER_DATA_COMMON
+        header.extend(HEADER_DATA_MAPPER66)
+        header.extend(HEADER_DATA_COMMON_FOOTER)
+        return bytes(header)
+
+    def read_prg_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        bin = bytearray([])
+        self.set_prg_rom_mode()
+        super().read(rom_size, 0x8000)
+        for bin_key in self.get_bank_key_list():
+            # bank key を探してその値をそれぞれ書き込んでバンクを切り替える
+            bnk_addr = self.find_mapper_selecting_key(bin_key)
+            self.bins.clear()
+            self.dbg.dbg_log(f"key: {hex(bin_key)} addr={hex(bnk_addr)}")
+            self.change_chr_rom_bank(bin_key, bnk_addr)
+            self.set_prg_rom_mode()
+            bin.extend(super().read(rom_size, 0x8000))
+            
+            bnk_addr = self.find_mapper_selecting_key(bin_key)
+            set_address(0)
+            unset_romsel()
+            unset_cpu_rw()
+            set_data_ctrl_to_output()
+            set_address(bnk_addr)
+            set_data(bin_key)
+            set_cpu_rw()
+            set_romsel()
+            set_data_ctrl_to_intput()
+            unset_ppu_r()
+            # self.set_chr_rom_mode()
+            self.chr_rom.extend(super().read(0x2000, 0x0000))
+
+        return bin
+
+    def read_chr_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        return self.chr_rom
 
 
 def led_testing(arg_dict: dict):
@@ -513,7 +586,7 @@ def parse_args(args: list) -> dict:
     argparser.add_argument(
         "-a",
         "--mapper",
-        choices=["mapper0", "mapper3"],
+        choices=["mapper0", "mapper3", "mapper66"],
         default="mapper0",
         help="mapper select;",
     )
@@ -527,7 +600,9 @@ def parse_args(args: list) -> dict:
     argparser.add_argument(
         "-m", "--mode", choices=["dumper", "led_test"], default="dumper", help="mode"
     )
-    argparser.add_argument("-d", "--debug", nargs="?", const=True, default=False, help="debug log")
+    argparser.add_argument(
+        "-d", "--debug", nargs="?", const=True, default=False, help="debug log"
+    )
     argparser.add_argument(
         "-D", "--led_duty", nargs="*", type=float, default=[1], help="LED testing only"
     )
@@ -573,6 +648,8 @@ def MainLoop():
     dump: RomDumper = None
     if mapper == "mapper3":
         dump = RomDumperMapper3()
+    elif mapper == "mapper66":
+        dump = RomDumperMapper66()
     else:
         dump = RomDumper()
 
@@ -580,15 +657,14 @@ def MainLoop():
         dump.set_debug_object(Debug())
 
     bin = bytearray([])
-    dump.set_prg_rom_mode()
-    bin.extend(dump.read(rom_size))
-    dump.set_chr_rom_mode()
-    bin.extend(dump.read(chr_size))
+    bin.extend(dump.read_prg_rom(rom_size))
+    bin.extend(dump.read_chr_rom(chr_size))
 
-    with open(path_w, mode="wb") as f:
-        header = bytes(HEADER_DATA)
-        f.write(header)
-        f.write(bin)
+    dump.write_file(path_w, bin)
+    # with open(path_w, mode="wb") as f:
+    #     header = bytes(HEADER_DATA)
+    #     f.write(header)
+    #     f.write(bin)
 
     clear_addr()
     term_port()
