@@ -41,6 +41,14 @@ HEADER_DATA_MAPPER66 = [
     0x40,
 ]
 
+HEADER_DATA_MAPPER1 = [
+    # mapper 1
+    0x10,
+    0x00,
+    0x10,
+    0x00,
+]
+
 SIZE_8K = "8K"
 SIZE_16K = "16K"
 SIZE_32K = "32K"
@@ -51,10 +59,15 @@ SIZE_32K = "32K"
 ROM_SIZE_DICT = {SIZE_8K: 0x2000, SIZE_16K: 0x4000, SIZE_32K: 0x8000}
 
 BANK_KEY_LIST = [0x30, 0x31, 0x32, 0x33]  # mapper3
-BANK_KEY_MAPPER66_LIST0 = [0x00, 0x11, 0x22, 0x33] # 4bank
+BANK_KEY_MAPPER66_LIST0 = [0x00, 0x11, 0x22, 0x33]  # 4bank
 # BANK_KEY_MAPPER66_LIST0 = [0x00, 0x10, 0x20, 0x30]  # 4bank
 # BANK_KEY_MAPPER66_LIST1 = [0x30, 0x31, 0x32, 0x33]  # 4bank
 # BANK_KEY_MAPPER66_LIST1 = [0x00, 0x01, 0x02, 0x03] # 4bank
+
+BANK_KEY_MAPPER1_CTRL_REG = 0x1F  # chr bank 4KB, bank size 16KB, 4 screen, scroll H
+BANK_HOME_MAPPER1 = 0xC000  # 0xC000 - 0xFFFF
+BANK_AREA_MAPPER1 = 0x8000  # 0x8000 - 0xBFFF
+BANK_PRG_REGISTER = 0xE000  # 0xE000 - 0xFFFF
 
 
 def init_port(data_in: bool = True):
@@ -336,6 +349,106 @@ class RomDumper:
             f.write(data)
 
 
+# 　＄８０００－＄９ＦＦＦ：設定レジスタＲ０　Ｖ－ＲＡＭコントロール
+# 　＄Ａ０００－＄ＢＦＦＦ：　　〃　　　Ｒ１　ＣＨＲバンク０
+# 　＄Ｃ０００－＄ＤＦＦＦ：　　〃　　　Ｒ２　ＣＨＲバンク１
+# 　＄Ｅ０００－＄ＦＦＦＦ：　　〃　　　Ｒ３　ＰＲＧバンク
+#
+# b15-12 b11-b8 b7-b4  b3-b0
+# --------------------------
+# 1000   0000   0000   0000   0x8000  b15=1(NC?) b14=0 b13=0 b12=0
+# 1010   0000   0000   0000   0xA000  b15=1(NC?) b14=0 b13=1 b12=0
+# 1100   0000   0000   0000   0xC000  b15=1(NC?) b14=1 b13=0 b12=0
+# 1110   0000   0000   0000   0xE000  b15=1(NC?) b14=1 b13=1 b12=0
+class RomDumperMapper1(RomDumper):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def get_header(self) -> bytes:
+        header = HEADER_DATA_COMMON
+        header.extend(HEADER_DATA_MAPPER1)
+        header.extend(HEADER_DATA_COMMON_FOOTER)
+        return bytes(header)
+
+    def reset_bus(self):
+        set_cpu_rw()
+        set_romsel()
+        set_m2_o2()
+        set_ppu_r()
+        set_ppu_w()
+
+    def clear_sp_register(self, addr: int = 0x0):
+        self.reset_bus()
+
+        set_data_ctrl_to_output()
+        # clear data
+        clear_addr()
+        set_address(0x8000 | addr)
+
+        # write data
+        unset_m2_o2()
+        set_data(0x80)
+        unset_cpu_rw()
+
+        unset_romsel()
+        time.sleep(INTV)
+        set_m2_o2()
+        time.sleep(INTV)
+        unset_m2_o2()
+
+        self.reset_bus()
+
+    def write_control_register(self, addr: int, value: int, bin_list: list = None):
+        self.reset_bus()
+
+        set_data_ctrl_to_output()
+
+        pre = 0
+        for i in range(0, 5):
+            # set address
+            clear_addr()
+            set_address(addr)
+            unset_m2_o2()
+            set_data((value >> i) & 0x1)
+            unset_cpu_rw()
+
+            unset_romsel()
+            time.sleep(INTV)
+            set_m2_o2()
+            time.sleep(INTV)
+            unset_m2_o2()
+
+            self.reset_bus()
+
+    def select_bank(self, addr: int, bank: int):
+        self.dbg.dbg_log(f"select_bank : {bank} addr: {hex(addr)}")
+        self.write_control_register(addr, bank)
+
+    def read_prg_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        bins = bytearray([])
+        self.set_prg_rom_mode()
+        set_data_ctrl_to_intput()
+        self.reset_bus()
+        self.clear_sp_register()
+        self.write_control_register(0x8000, BANK_KEY_MAPPER1_CTRL_REG)
+
+        # PRG bank (1=RAM 0=ROM)
+        # 00000 - 01111  0 - 15 bank
+        for bank in range(0, 16):
+            self.dbg.dbg_log(f"bank: {bank} ")
+            self.reset_bus()
+            self.select_bank(BANK_PRG_REGISTER, bank)
+            self.set_prg_rom_mode()
+            set_data_ctrl_to_intput()
+            bins.extend(super().read(rom_size, BANK_AREA_MAPPER1))
+            self.clear_sp_register()
+
+        return bins
+
+    def read_chr_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        return bytearray([])
+
+
 class RomDumperMapper3(RomDumper):
     # chr_romのバンクの数を入力
     def __init__(self) -> None:
@@ -500,7 +613,7 @@ class RomDumperMapper66(RomDumperMapper3):
     def __init__(self) -> None:
         super().__init__()
         # self.prg_rom:bytearray = bytearray([])
-        self.chr_rom:bytearray = bytearray([])
+        self.chr_rom: bytearray = bytearray([])
 
     def get_bank_key_list(self) -> list:
         return BANK_KEY_MAPPER66_LIST0
@@ -523,7 +636,7 @@ class RomDumperMapper66(RomDumperMapper3):
             self.change_chr_rom_bank(bin_key, bnk_addr)
             self.set_prg_rom_mode()
             bin.extend(super().read(rom_size, 0x8000))
-            
+
             bnk_addr = self.find_mapper_selecting_key(bin_key)
             set_address(0)
             unset_romsel()
@@ -586,7 +699,7 @@ def parse_args(args: list) -> dict:
     argparser.add_argument(
         "-a",
         "--mapper",
-        choices=["mapper0", "mapper3", "mapper66"],
+        choices=["mapper0", "mapper1", "mapper3", "mapper66"],
         default="mapper0",
         help="mapper select;",
     )
@@ -650,6 +763,8 @@ def MainLoop():
         dump = RomDumperMapper3()
     elif mapper == "mapper66":
         dump = RomDumperMapper66()
+    elif mapper == "mapper1":
+        dump = RomDumperMapper1()
     else:
         dump = RomDumper()
 
