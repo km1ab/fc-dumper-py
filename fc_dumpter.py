@@ -379,7 +379,7 @@ class RomDumperMapper1(RomDumper):
 
     def clear_sp_register(self, addr: int = 0x0):
         self.reset_bus()
-        
+
         set_data_ctrl_to_output()
         # clear data
         clear_addr()
@@ -395,7 +395,7 @@ class RomDumperMapper1(RomDumper):
         set_m2_o2()
         time.sleep(INTV)
         unset_m2_o2()
-        
+
         self.reset_bus()
 
     def write_control_register(self, addr: int, value: int, bin_list: list = None):
@@ -406,13 +406,8 @@ class RomDumperMapper1(RomDumper):
         pre = 0
         for i in range(0, 5):
             # set address
-            if bin_list is None:
-                clear_addr()
-                set_address(addr)
-            elif bin_list is not None and pre != bin_list[i]:
-                clear_addr()
-                set_address(addr | bin_list[i])
-            pre = bin_list[i]
+            clear_addr()
+            set_address(addr)
             unset_m2_o2()
             set_data((value >> i) & 0x1)
             unset_cpu_rw()
@@ -425,78 +420,28 @@ class RomDumperMapper1(RomDumper):
 
             self.reset_bus()
 
-    def select_bank(self, addr: int, bin_list: list, bank: int):
+    def select_bank(self, addr: int, bank: int):
         self.dbg.dbg_log(f"select_bank : {bank} addr: {hex(addr)}")
-        self.write_control_register(addr, bank, bin_list)
-
-    def find_mapper_selecting_key(
-        self, key: int, mask: int = 0x1000, mask_flag: bool = False
-    ) -> int:
-        addr: int = 0
-        # print(f"type: {type(key)}")
-        self.dbg.dbg_log(f"find_key = {key}")
-        for value in self.bins:
-            if mask_flag:
-                if (value & key) == key and (value & 0x80) == 0 and addr != 0x0000:
-                    return addr
-            elif value == key and addr != 0x0000:
-                if mask != 0:
-                    if addr & mask:
-                        return addr
-                else:
-                    return addr
-            addr = addr + 1
-
-        return 0x0000
-
-    def get_addr_list_for_key(self, key: int) -> list:
-        addr_list = []
-        for key_i in range(5):
-            mask = key >> key_i & 0x1
-            # self.dbg.dbg_log(f"mask = {mask}")
-            addr: int = 0
-            for value in self.bins:
-                # self.dbg.dbg_log(type(value))
-                if (value & 0x1) == mask and (value & (~0x80)):
-                    # self.dbg.dbg_log(f"value = {value}")
-                    # self.dbg.dbg_log(f"value&mask = {value & mask}")
-                    addr_list.append(addr)
-                    break
-                addr = addr + 1
-        print(addr_list)
-        return addr_list
+        self.write_control_register(addr, bank)
 
     def read_prg_rom(self, rom_size: int, addr: int = 0) -> bytearray:
         bins = bytearray([])
         self.set_prg_rom_mode()
         set_data_ctrl_to_intput()
-        bins.extend(self.read(rom_size, BANK_HOME_MAPPER1))
         self.reset_bus()
-        # clr_key: int = self.find_mapper_selecting_key(0x80, 0x0, True)
-        # self.dbg.dbg_log(f"clr_key: {hex(clr_key)}")
-        self.clear_sp_register()#(clr_key)  # todo: キーを見つける??
-        # ctrl_key: int = self.find_mapper_selecting_key(BANK_KEY_MAPPER1_CTRL_REG, 0x0, True)
-        # self.dbg.dbg_log(f"ctrl_key: {hex(ctrl_key)}")
-        bin_list = self.get_addr_list_for_key(BANK_KEY_MAPPER1_CTRL_REG)
-        self.write_control_register(0x8000, BANK_KEY_MAPPER1_CTRL_REG, bin_list)
+        self.clear_sp_register()
+        self.write_control_register(0x8000, BANK_KEY_MAPPER1_CTRL_REG)
 
         # PRG bank (1=RAM 0=ROM)
         # 00000 - 01111  0 - 15 bank
-        # bank0 is skip
-        bins.clear()
         for bank in range(0, 16):
-            bin_list = self.get_addr_list_for_key(bank)
-            # bin_key: int = self.find_mapper_selecting_key(bank,0x0)  # at home bank??
-            # self.dbg.dbg_log(f"clr_key: {hex(clr_key)}")
-            # self.bins.clear()
-            self.dbg.dbg_log(f"bank: {bank} key: {bin_list}")
+            self.dbg.dbg_log(f"bank: {bank} ")
             self.reset_bus()
-            self.select_bank(BANK_PRG_REGISTER, bin_list, bank)
+            self.select_bank(BANK_PRG_REGISTER, bank)
             self.set_prg_rom_mode()
             set_data_ctrl_to_intput()
             bins.extend(super().read(rom_size, BANK_AREA_MAPPER1))
-            # clr_key = self.find_mapper_selecting_key(0x80, 0x0, True)
-            self.clear_sp_register()#(clr_key)  # todo: キーを見つける??
+            self.clear_sp_register()
 
         return bins
 
