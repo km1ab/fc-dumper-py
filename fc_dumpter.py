@@ -49,6 +49,15 @@ HEADER_DATA_MAPPER1 = [
     0x00,
 ]
 
+HEADER_DATA_MAPPER23 = [
+    # mapper 23
+    0x08,
+    0x10,
+    0x71,
+    0x10,
+]
+
+SIZE_1K = "1K"
 SIZE_8K = "8K"
 SIZE_16K = "16K"
 SIZE_32K = "32K"
@@ -56,7 +65,7 @@ SIZE_32K = "32K"
 # SIZE_128K = "128K"
 # rom_size: int = 0x4000  # PRG-ROM 16K
 # chr_size: int = 0x2000  # CHR-ROM 8K
-ROM_SIZE_DICT = {SIZE_8K: 0x2000, SIZE_16K: 0x4000, SIZE_32K: 0x8000}
+ROM_SIZE_DICT = {SIZE_1K: 0x400, SIZE_8K: 0x2000, SIZE_16K: 0x4000, SIZE_32K: 0x8000}
 
 BANK_KEY_LIST = [0x30, 0x31, 0x32, 0x33]  # mapper3
 BANK_KEY_MAPPER66_LIST0 = [0x00, 0x11, 0x22, 0x33]  # 4bank
@@ -230,6 +239,12 @@ class Debug:
 
     def dbg_log(self, log: str):
         print(log)
+
+    def dbg_print(self, log_msg, kaigyo: bool = True):
+        if kaigyo:
+            print(log_msg)
+        else:
+            print(log_msg, end="")
 
 
 class DebugDummy(Debug):
@@ -657,6 +672,87 @@ class RomDumperMapper66(RomDumperMapper3):
         return self.chr_rom
 
 
+# VRC2
+# Nickname	PCB	A0	A1	Registers	iNES mapper	submapper
+# VRC2a	351618	A1	A0	$x000, $x002, $x001, $x003	22	0
+# VRC2b	many†	A0	A1	$x000, $x001, $x002, $x003	23	3 ***
+# VRC2c	351948	A1	A0	$x000, $x002, $x001, $x003	25	3
+# --------------------------------------------------------------------
+# Wai Wai World	VRC2b	23
+# --------------------------------------------------------------------
+# Reference
+# https://www.nesdev.org/wiki/VRC2_and_VRC4
+# https://github.com/ahefner/tenes/blob/master/tech/everynes.txt#L2775C1-L2775C1
+# https://www.famicomworld.com/forum/index.php?topic=4438.0
+
+
+class RomDumperMapper23(RomDumperMapper66):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def get_header(self) -> bytes:
+        header = HEADER_DATA_COMMON
+        header.extend(HEADER_DATA_MAPPER23)
+        header.extend(HEADER_DATA_COMMON_FOOTER)
+        return bytes(header)
+
+    def get_bank_key_list(self) -> list:
+        return [
+            0x00,
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0x07,
+            0x08,
+            0x09,
+            0x0A,
+            0x0B,
+            0x0C,
+            0x0D,
+            0x0E,
+            0x0F,
+        ]
+
+    def read_prg_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        bin = bytearray([])
+        self.set_prg_rom_mode()
+        super().read(rom_size, 0x8000)
+        for bin_key in self.get_bank_key_list():
+            bnk_addr = 0x8000
+            self.bins.clear()
+            self.dbg.dbg_log(f"key: {hex(bin_key)} addr={hex(bnk_addr)}")
+            self.change_chr_rom_bank(bin_key, bnk_addr)
+            self.set_prg_rom_mode()
+            bin.extend(super().read(rom_size, 0x8000))
+
+        return bin
+
+    def read_chr_rom(self, rom_size: int, addr: int = 0) -> bytearray:
+        bin = bytearray([])
+        start = 0x0000
+        addr = 0
+        bnk_addr_low_list = [0xB000]
+        # , 0xB002, 0xC000, 0xC002, 0xD000, 0xD002, 0xE000, 0xE002
+        # i = 0
+        # print(f"size={rom_size}")
+        for bin_key in range(128):  # 128KB only (1 KiB switchable CHR bank)
+            for bnk_addr in bnk_addr_low_list:
+                self.change_chr_rom_bank(bin_key & 0x0F, bnk_addr)
+                self.change_chr_rom_bank((bin_key >> 4) & 0x0F, bnk_addr + 1)
+                self.set_chr_rom_mode()
+                bin.extend(super().read(rom_size, start + addr))
+                # print_binary_view(
+                #     self.dbg, i * 16, bin, True if i == 0 else False, False
+                # )
+                # print(f" bin_key={bin_key}", end="")
+                # print(f" bin_key={bin_key}")
+                # i = i + 1
+        return bin
+
+
 def led_testing(arg_dict: dict):
     led_freq: list[float] = arg_dict["led_freq"]
     led_duty: list[float] = arg_dict["led_duty"]
@@ -685,21 +781,21 @@ def parse_args(args: list) -> dict:
     argparser.add_argument(
         "-p",
         "--prg_rom_size",
-        choices=[SIZE_16K, SIZE_32K],
+        choices=[SIZE_8K, SIZE_16K, SIZE_32K],
         default=SIZE_16K,
         help="program rom size select;",
     )
     argparser.add_argument(
         "-c",
         "--chr_rom_size",
-        choices=[SIZE_8K, SIZE_16K, SIZE_32K],
+        choices=[SIZE_1K, SIZE_8K, SIZE_16K, SIZE_32K],
         default=SIZE_8K,
         help="charactor rom size select;",
     )
     argparser.add_argument(
         "-a",
         "--mapper",
-        choices=["mapper0", "mapper1", "mapper3", "mapper66"],
+        choices=["mapper0", "mapper1", "mapper3", "mapper66", "mapper23"],
         default="mapper0",
         help="mapper select;",
     )
@@ -717,6 +813,10 @@ def parse_args(args: list) -> dict:
         "-d", "--debug", nargs="?", const=True, default=False, help="debug log"
     )
     argparser.add_argument(
+        "-i", "--info", nargs="?", const=True, default=False, help="game infomation"
+    )
+    argparser.add_argument("-s", "--size", type=int, default=256, help="read size")
+    argparser.add_argument(
         "-D", "--led_duty", nargs="*", type=float, default=[1], help="LED testing only"
     )
     argparser.add_argument(
@@ -733,6 +833,54 @@ def parse_args(args: list) -> dict:
     return vars(parse_args)
 
 
+def print_binary_view(
+    dbg: Debug,
+    startaddr: int,
+    data: dict,
+    first_line: bool = True,
+    last_line: bool = True,
+):
+    if first_line:
+        dbg.dbg_print("======================================================")
+    addr = startaddr
+    if first_line:
+        dbg.dbg_print("     |", False)
+        for value in range(16):
+            formated = format(value, "02x").upper()
+            dbg.dbg_print(f" {formated}", False)
+        dbg.dbg_print("\n------------------------------------------------------", False)
+    idx = 0
+    for value in data:
+        if idx % 16 == 0:
+            dbg.dbg_print("")
+            formated = format(addr + idx, "04x").upper()
+            dbg.dbg_print(f"{formated} |", False)
+        formated = format(value, "02x").upper()
+        dbg.dbg_print(f" {formated}", False)
+        idx = idx + 1
+    if last_line:
+        dbg.dbg_print("")
+        dbg.dbg_print("======================================================")
+
+
+def print_game_info(dump: RomDumper, size: int):
+    data = dump.read_prg_rom(size)
+    # print(len(data))
+    print("")
+    data_l = []
+    for i in range(len(data)):
+        data_l.append(data[i])
+        # print(f'{format(data[i],"02X")} ', end="")
+    print_binary_view(Debug(), 0, data_l)
+    print("")
+
+
+def Term():
+    clear_addr()
+    print("Term Port")
+    term_port()
+
+
 def MainLoop():
     args = sys.argv
     arg_dict = parse_args(args)
@@ -742,6 +890,8 @@ def MainLoop():
     mapper: str = arg_dict["mapper"]
     # hint: str = arg_dict["hint"]
     debug: bool = arg_dict["debug"]
+    info: bool = arg_dict["info"]
+    size: int = arg_dict["size"]
     if mode == "led_test":
         led_test = True
 
@@ -756,6 +906,7 @@ def MainLoop():
     # print(f"{type(led_time)}")
     if led_test:
         led_testing(arg_dict)
+        Term()
         return
 
     dump: RomDumper = None
@@ -765,11 +916,18 @@ def MainLoop():
         dump = RomDumperMapper66()
     elif mapper == "mapper1":
         dump = RomDumperMapper1()
+    elif mapper == "mapper23":
+        dump = RomDumperMapper23()
     else:
         dump = RomDumper()
 
     if debug:
         dump.set_debug_object(Debug())
+
+    if info:
+        print_game_info(dump, size)
+        Term()
+        return
 
     bin = bytearray([])
     bin.extend(dump.read_prg_rom(rom_size))
@@ -792,6 +950,4 @@ try:
 except Exception as e:
     print(f"Error: {e}")
     print("Clear Address")
-    clear_addr()
-    print("Term Port")
-    term_port()
+    Term()
