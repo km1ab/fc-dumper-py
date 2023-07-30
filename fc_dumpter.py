@@ -797,7 +797,7 @@ def parse_args(args: list) -> dict:
         "--mapper",
         choices=["mapper0", "mapper1", "mapper3", "mapper66", "mapper23"],
         default="mapper0",
-        help="mapper select;",
+        help="mapper select; In mapper 23, specify the size of the bank in options '-p' and '-c'. ",
     )
     # argparser.add_argument(
     #     "-t",
