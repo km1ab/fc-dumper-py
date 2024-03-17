@@ -1,6 +1,7 @@
 # FC dumper py
 
-FC dumper by Python
+- Dumper for fc by Python.
+- This dumper is a HAT for Raspberry Pi and we also publish the source code to make it work in this repository.
 
 ## Environment
 - Raspberry pi 3 b+, or later
@@ -10,7 +11,39 @@ FC dumper by Python
 At Raspberry pi, or remote connecting (ex ssh,...)
 ```
 pip install RPi.GPIO
-python3 sfc-dumper.py filename
+python3 fc-dumper.py -o filename
+```
+
+```
+$ python3 fc_dumpter.py --help
+usage: fc_dumpter.py [-h] [-o OUTPUT_FILE] [-p {8K,16K,32K}] [-c {1K,8K,16K,32K}] [-a {mapper0,mapper1,mapper3,mapper66,mapper23}] [-m {dumper,led_test}] [-d [DEBUG]] [-i [INFO]] [-s SIZE]
+                     [-D [LED_DUTY ...]] [-F [LED_FREQ ...]] [-N [LED_NUMBER ...]] [-T LED_TIME]
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTPUT_FILE, --output_file OUTPUT_FILE
+                        output file name; (default: output.nes)
+  -p {8K,16K,32K}, --prg_rom_size {8K,16K,32K}
+                        program rom size select; (default: 16K)
+  -c {1K,8K,16K,32K}, --chr_rom_size {1K,8K,16K,32K}
+                        charactor rom size select; (default: 8K)
+  -a {mapper0,mapper1,mapper3,mapper66,mapper23}, --mapper {mapper0,mapper1,mapper3,mapper66,mapper23}
+                        mapper select; In mapper 23, specify the size of the bank in options '-p' and '-c'. (default: mapper0)
+  -m {dumper,led_test}, --mode {dumper,led_test}
+                        mode (default: dumper)
+  -d [DEBUG], --debug [DEBUG]
+                        debug log (default: False)
+  -i [INFO], --info [INFO]
+                        game infomation (default: False)
+  -s SIZE, --size SIZE  read size (default: 256)
+  -D [LED_DUTY ...], --led_duty [LED_DUTY ...]
+                        LED testing only (default: [1])
+  -F [LED_FREQ ...], --led_freq [LED_FREQ ...]
+                        LED testing only (default: [20])
+  -N [LED_NUMBER ...], --led_number [LED_NUMBER ...]
+                        LED testing only (default: [0])
+  -T LED_TIME, --led_time LED_TIME
+                        LED testing only (default: 5)
 ```
 
 ## Hardware
@@ -27,7 +60,7 @@ python3 sfc-dumper.py filename
 |--------------------------------|----|----------|-------------------------------------------------------------------------|
 | PCB-top (rev1.0)               | 1  | 頒布予定     | 本ページのHardwareを参照                                                        |
 | PCB-bottom (rev1.0)            | 1  | 頒布予定     | 本ページのHardwareを参照                                                        |
-| ラズパイ 3 b+                      | 1  | メルカリ？など  | ラズパイ5が発売されました。少々高いですが、容量少ない方が比較的入手しやすようです。2024/03現在。                    |
+| ラズパイ 3 b+                      | 1  | メルカリ？など  | ラズパイ5が発売されました。少々高いですが、容量の少ない方が比較的入手しやすいようです。2024/03現在。                    |
 | CR22A-60D-2.54DS(70)           | 1  | ⇒⇒⇒      | googleにて、CR22A-60D-2.54DS(70)で検索すると、ある程度ヒットします。                         |
 | 抵抗内蔵５ｍｍＬＥＤ（※）                  | 1  | 秋月電子     | https://akizukidenshi.com/catalog/g/gI-12517/                           |
 | 小型スライドスイッチ　１回路２接点              | 1  | 秋月電子     | https://akizukidenshi.com/catalog/g/gP-12723/                           |
